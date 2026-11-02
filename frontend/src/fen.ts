@@ -12,28 +12,11 @@ export const SQUARES: string[] = Array.from({ length: 64 }, (_, index) => {
   return `${file}${rank}`
 })
 
-const GLYPHS: Record<string, string> = {
-  K: '♔',
-  Q: '♕',
-  R: '♖',
-  B: '♗',
-  N: '♘',
-  P: '♙',
-  k: '♚',
-  q: '♛',
-  r: '♜',
-  b: '♝',
-  n: '♞',
-  p: '♟',
-}
-
 export interface Square {
   /** Algebraic name, e.g. "e4". */
   name: string
   /** FEN letter of the piece standing there, or null. */
   piece: string | null
-  /** Unicode glyph to draw, or null. */
-  glyph: string | null
   /** Colour of the piece, or null when the square is empty. */
   color: Color | null
   /** True for the light-coloured half of the board. */
@@ -63,11 +46,16 @@ export function parseFen(fen: string): Square[] {
     return {
       name,
       piece,
-      glyph: piece ? (GLYPHS[piece] ?? null) : null,
       color: piece ? (piece === piece.toUpperCase() ? 'white' : 'black') : null,
       light: (file + rank) % 2 === 0,
     }
   })
+}
+
+/** Where the given side's king stands, for highlighting a check. */
+export function findKing(fen: string, color: Color): string | null {
+  const king = color === 'white' ? 'K' : 'k'
+  return parseFen(fen).find((square) => square.piece === king)?.name ?? null
 }
 
 /**

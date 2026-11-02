@@ -26,6 +26,7 @@ from app.models.game import (
     Game,
     GameStateResponse,
     GameStatus,
+    LegalMovesResponse,
     Move,
     MoveResponse,
 )
@@ -67,6 +68,22 @@ class GameService:
     def list_moves(self, game_id: str) -> list[MoveResponse]:
         game = self._require_game(game_id)
         return [MoveResponse.from_move(move) for move in game.moves]
+
+    def list_legal_moves(self, game_id: str) -> LegalMovesResponse:
+        """Every move the side to move may play right now.
+
+        A finished game has no playable move, whatever its last position says,
+        so the list comes back empty rather than tempting a caller to offer a
+        move the API would refuse.
+        """
+        game = self._require_game(game_id)
+        board = chess.Board(game.fen)
+        moves = [] if game.status.is_over else [move.uci() for move in board.legal_moves]
+        return LegalMovesResponse(
+            fen=game.fen,
+            turn=self._turn_of(board),
+            moves=moves,
+        )
 
     def play_move(self, game_id: str, player_id: str, uci: str) -> GameStateResponse:
         """Play one move for `player_id`.

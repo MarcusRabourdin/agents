@@ -43,8 +43,9 @@ Then, both of you:
 1. Pick a name, press **Start**.
 2. Press **Find an opponent**. The first one waits, the second is matched and
    the game opens on both screens.
-3. Click one of your pieces, then its destination. The server validates the
-   move; an illegal one comes back as a message under the board.
+3. Click one of your pieces. Every square it may legally move to is marked -
+   a dot on an empty square, a ring around a piece it can take. Click one of
+   them to play the move.
 
 ## How it works
 
@@ -52,13 +53,22 @@ Then, both of you:
 |------|------|
 | `src/api.ts` | Typed client. Shapes mirror `doc/swagger.yaml`. |
 | `src/fen.ts` | FEN to 64 squares, and UCI building. |
-| `src/Board.tsx` | The board. Click a piece, click a target. |
+| `src/Board.tsx` | The board: squares, coordinates, move hints. |
+| `src/Piece.tsx` | Draws one piece from the geometry in `pieceShapes.ts`. |
+| `src/pieceShapes.ts` | The SVG outlines of the six pieces. |
 | `src/App.tsx` | Three screens: name, lobby, game. Polling lives here. |
 
 Deliberate choices:
 
 - **No chess library on the client.** The server owns every rule, so the client
   sends `from+to` and renders whatever position comes back. One source of truth.
+- **Legal moves come from the API.** `GET /games/{id}/legal-moves` is fetched
+  once per position, not once per click, so highlighting a piece's moves is
+  instant and still never disagrees with the server.
+- **Pieces are SVG, not Unicode.** The white glyphs (`♔♕♖`) are hollow by
+  design, so a white king read as an outline. Each piece is drawn as a solid
+  silhouette instead, filled in its own colour and edged in the other so both
+  sides stay readable on either square shade.
 - **Polling, not websockets.** Both sides poll every 1.5s, so the opponent's
   move takes up to that long to appear. The API has no socket yet.
 - **Auto-queens.** A pawn reaching the last rank promotes to a queen with no

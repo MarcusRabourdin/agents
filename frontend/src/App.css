@@ -108,13 +108,15 @@ button.link {
   grid-template-columns: repeat(8, 1fr);
   width: 100%;
   aspect-ratio: 1;
-  border: 1px solid var(--line);
+  border: 1px solid var(--board-edge);
   border-radius: 0.3rem;
   overflow: hidden;
+  box-shadow: 0 1px 10px rgb(0 0 0 / 0.14);
 }
 
 .square {
   all: unset;
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -144,21 +146,113 @@ button.link {
   box-shadow: inset 0 0 0 100vmax var(--highlight-pick);
 }
 
-.piece {
-  font-size: clamp(1.4rem, 7vw, 2.4rem);
+.square.in-check {
+  box-shadow: inset 0 0 0 100vmax var(--highlight-check);
+}
+
+/* File letters and rank numbers, tucked into the edge squares. */
+.coord {
+  position: absolute;
+  font-size: clamp(0.5rem, 1.6vw, 0.6rem);
+  font-weight: 700;
   line-height: 1;
+  pointer-events: none;
 }
 
-/* The glyphs already carry their colour, but outlining them keeps both sides
-   readable on either square shade. */
-.piece.white {
-  color: #fff;
-  text-shadow: 0 0 2px #000, 0 1px 2px rgb(0 0 0 / 0.5);
+.light > .coord {
+  color: var(--square-dark);
 }
 
-.piece.black {
-  color: #111;
-  text-shadow: 0 0 2px rgb(255 255 255 / 0.45);
+.dark > .coord {
+  color: var(--square-light);
+}
+
+.coord-rank {
+  top: 0.15rem;
+  left: 0.2rem;
+}
+
+.coord-file {
+  right: 0.2rem;
+  bottom: 0.15rem;
+}
+
+/* Pieces. Painted twice - a fat stroke for the outline, then the body on top -
+   so each one is a solid silhouette with a clean edge and no hollow areas. See
+   pieceShapes.ts. */
+
+.piece {
+  position: relative;
+  width: 86%;
+  height: 86%;
+  display: block;
+  overflow: visible;
+  filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.35));
+}
+
+.piece-outline {
+  stroke-width: 2.6;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.piece-body {
+  stroke: none;
+}
+
+.piece-detail {
+  fill: none;
+  stroke-width: 1.1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Each side is filled in its own colour and edged in the other, so both read
+   against either square shade. */
+.piece.white .piece-outline {
+  fill: var(--piece-dark);
+  stroke: var(--piece-dark);
+}
+
+.piece.white .piece-body {
+  fill: var(--piece-light);
+}
+
+.piece.white .piece-detail {
+  stroke: var(--piece-dark);
+}
+
+.piece.black .piece-outline {
+  fill: var(--piece-light);
+  stroke: var(--piece-light);
+}
+
+.piece.black .piece-body {
+  fill: var(--piece-dark);
+}
+
+.piece.black .piece-detail {
+  stroke: var(--piece-light);
+}
+
+/* Where the selected piece may go: a dot on an empty square, a ring around a
+   square it can capture on, so the piece underneath stays visible. */
+.move-hint {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 30%;
+  height: 30%;
+  border-radius: 50%;
+  background: var(--move-hint);
+  pointer-events: none;
+}
+
+.move-hint.capture {
+  width: 92%;
+  height: 92%;
+  background: none;
+  border: 0.22rem solid var(--move-hint);
 }
 
 .moves {
