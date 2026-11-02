@@ -81,6 +81,10 @@ backend/
 doc/
   swagger.yaml           Generated OpenAPI spec, committed, never hand-edited
 frontend/                React + Typescript + Vite
+  src/api.ts             Typed client, mirrors doc/swagger.yaml
+  src/fen.ts             FEN -> 64 squares, UCI building
+  src/Board.tsx          The board
+  src/App.tsx            Name / lobby / game screens, polling
 flake.nix                Pinned toolchain: devShell, nix run, nix flake check
 flake.lock               Pinned nixpkgs, committed
 ```
@@ -119,12 +123,16 @@ python3 -m venv .venv
 .venv/bin/python -m pytest backend/tests
 ```
 
-Frontend, either way:
+Frontend, either way (needs the API running too):
 
 ```sh
-npm --prefix frontend install
-npm --prefix frontend run dev
+npm --prefix frontend install        # first time only
+npm --prefix frontend run dev        # http://localhost:5173
+npm --prefix frontend run dev -- --host   # also reachable from the network
 ```
+
+The dev server proxies `/api` to `http://127.0.0.1:8000`, so the browser stays
+on one origin and CORS never comes up. See `frontend/README.md`.
 
 ## Code style
 
@@ -184,6 +192,9 @@ npm --prefix frontend run dev
     ```
 
   - Live interactive docs are served by the app at `/docs`.
+  - `frontend/src/api.ts` is the client-side mirror of this contract. An
+    endpoint whose request or response shape changes updates that file in the
+    same change, or the client silently breaks.
 
 ## Commits
   - Conventional Commits only: `type(scope): description`. See
