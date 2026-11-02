@@ -81,6 +81,8 @@ backend/
 doc/
   swagger.yaml           Generated OpenAPI spec, committed, never hand-edited
 frontend/                React + Typescript + Vite
+flake.nix                Pinned toolchain: devShell, nix run, nix flake check
+flake.lock               Pinned nixpkgs, committed
 ```
 
 Aggregates: `player`, `game` (which owns moves) and `lobby`. Moves get their own
@@ -89,22 +91,37 @@ they are served by `GameService`: a move has no life of its own.
 
 ## Setup commands
 
+Nix is the primary path. `flake.nix` pins the interpreter, every Python
+library, Node and ruff, so the toolchain is identical everywhere.
+
 ```sh
-# Backend
+nix develop                 # dev shell: python + deps, node, ruff
+nix run .#                  # serve the API with --reload, from the repo root
+nix flake check             # build the env and run the whole test suite
+nix fmt                     # format the nix files
+```
+
+Inside `nix develop`, commands are plain:
+
+```sh
+uvicorn app.main:app --reload --app-dir backend   # http://127.0.0.1:8000, docs at /docs
+pytest backend/tests                              # full suite
+pytest backend/tests/functional -v                # functional only
+python backend/scripts/export_swagger.py          # regenerate doc/swagger.yaml
+```
+
+Without Nix, `backend/requirements.txt` drives a plain venv. The flake's
+`pythonPackages` list and that file must be kept in step.
+
+```sh
 python3 -m venv .venv
 .venv/bin/python -m pip install -r backend/requirements.txt
+.venv/bin/python -m pytest backend/tests
+```
 
-# Run the API (http://127.0.0.1:8000, docs at /docs)
-.venv/bin/python -m uvicorn app.main:app --reload --app-dir backend
+Frontend, either way:
 
-# Tests
-.venv/bin/python -m pytest backend/tests                 # full suite
-.venv/bin/python -m pytest backend/tests/functional -v   # functional only
-
-# Regenerate doc/swagger.yaml from the running app's schema
-.venv/bin/python backend/scripts/export_swagger.py
-
-# Frontend
+```sh
 npm --prefix frontend install
 npm --prefix frontend run dev
 ```
@@ -135,6 +152,9 @@ npm --prefix frontend run dev
   - Unit tests are optional but encouraged for Services holding real rules.
   - A change is not done until the full suite is green. Fix the code, re-run,
     repeat until nothing fails.
+  - `nix flake check` runs the same suite against the pinned toolchain. It is
+    the one to trust before calling a change finished, since it does not depend
+    on whatever happens to be installed locally.
   - Repositories are reset between tests: no shared state leaking across cases.
 
 ## Endpoints

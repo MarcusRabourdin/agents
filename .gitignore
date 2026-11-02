@@ -11,6 +11,11 @@ node_modules/
 dist/
 *.local
 
+# Nix (flake.lock is committed on purpose)
+result
+result-*
+.direnv/
+
 # Editors / OS
 .DS_Store
 *.swp
