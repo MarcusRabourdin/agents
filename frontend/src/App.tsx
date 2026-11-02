@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 
 import './App.css'
 import { Board } from './Board'
@@ -11,7 +11,7 @@ import {
   type MoveResponse,
   type PlayerResponse,
 } from './api'
-import { toUci, type Square } from './fen'
+import { findKing, toUci, type Square } from './fen'
 
 const PLAYER_KEY = 'chess.player'
 const GAME_KEY = 'chess.gameId'
@@ -58,6 +58,7 @@ export default function App() {
   )
   const [game, setGame] = useState<GameStateResponse | null>(null)
   const [moves, setMoves] = useState<MoveResponse[]>([])
+  const [legalMoves, setLegalMoves] = useState<string[]>([])
   const [selected, setSelected] = useState<Square | null>(null)
   const [queued, setQueued] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -83,13 +84,15 @@ export default function App() {
 
     const tick = async () => {
       try {
-        const [nextGame, nextMoves] = await Promise.all([
+        const [nextGame, nextMoves, nextLegal] = await Promise.all([
           api.getGame(gameId),
           api.listMoves(gameId),
+          api.listLegalMoves(gameId),
         ])
         if (!active) return
         setGame(nextGame)
         setMoves(nextMoves)
+        setLegalMoves(nextLegal.moves)
       } catch (caught) {
         if (!active) return
         if (caught instanceof ApiError && caught.status === 404) {
@@ -153,6 +156,17 @@ export default function App() {
     }
   }, [])
 
+  // Destinations of the selected piece, picked out of the position's legal
+  // moves. Promotions appear as several moves to the same square, hence a set.
+  const targets = useMemo(() => {
+    if (!selected) return new Set<string>()
+    return new Set(
+      legalMoves
+        .filter((uci) => uci.slice(0, 2) === selected.name)
+        .map((uci) => uci.slice(2, 4)),
+    )
+  }, [selected, legalMoves])
+
   const handleCreatePlayer = (event: FormEvent) => {
     event.preventDefault()
     const name = username.trim()
@@ -185,23 +199,29 @@ export default function App() {
     const myColor: Color =
       game.white_player_id === player.id ? 'white' : 'black'
 
-    if (!selected) {
-      if (square.color === myColor) setSelected(square)
-      return
-    }
-    if (selected.name === square.name) {
-      setSelected(null)
-      return
-    }
+    // Clicking your own piece selects it and reveals where it may go; clicking
+    // it again puts it back down.
     if (square.color === myColor) {
-      setSelected(square)
+      setSelected(selected?.name === square.name ? null : square)
+      return
+    }
+    // Anything that is not a legal destination just clears the selection, so
+    // the server is never asked to judge a move the board already showed as
+    // impossible.
+    if (!selected || !targets.has(square.name)) {
+      setSelected(null)
       return
     }
 
     const uci = toUci(selected, square.name)
     void run(async () => {
       setGame(await api.playMove(game.id, player.id, uci))
-      setMoves(await api.listMoves(game.id))
+      const [nextMoves, nextLegal] = await Promise.all([
+        api.listMoves(game.id),
+        api.listLegalMoves(game.id),
+      ])
+      setMoves(nextMoves)
+      setLegalMoves(nextLegal.moves)
     }).finally(() => setSelected(null))
   }
 
@@ -217,6 +237,7 @@ export default function App() {
     setGameId(null)
     setGame(null)
     setMoves([])
+    setLegalMoves([])
     setSelected(null)
     setError(null)
   }
@@ -300,7 +321,9 @@ export default function App() {
         fen={game.fen}
         orientation={myColor}
         selected={selected}
+        targets={targets}
         lastMove={lastMove}
+        checkSquare={game.is_check ? findKing(game.fen, game.turn) : null}
         frozen={busy || !myTurn}
         onSquareClick={handleSquareClick}
       />

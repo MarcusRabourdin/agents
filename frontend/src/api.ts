@@ -37,6 +37,13 @@ export interface MoveResponse {
   fen_after: string
 }
 
+export interface LegalMovesResponse {
+  fen: string
+  turn: Color
+  /** Every legal move in UCI notation; empty once the game is over. */
+  moves: string[]
+}
+
 export interface QueueJoinResponse {
   queued: boolean
   game: GameStateResponse | null
@@ -117,6 +124,11 @@ export const api = {
 
   listMoves: (gameId: string) =>
     request<MoveResponse[]>(`/games/${gameId}/moves`),
+
+  // Fetched once per position rather than per click, so highlighting a piece's
+  // moves costs nothing and never waits on the network.
+  listLegalMoves: (gameId: string) =>
+    request<LegalMovesResponse>(`/games/${gameId}/legal-moves`),
 
   playMove: (gameId: string, playerId: string, uci: string) =>
     post<GameStateResponse>(`/games/${gameId}/moves`, {

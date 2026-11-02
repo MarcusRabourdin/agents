@@ -5,10 +5,15 @@
   --muted: #6b6b6b;
   --line: #d8d4cd;
   --accent: #6d8b5e;
-  --square-light: #ebe6da;
-  --square-dark: #9c8a6d;
+  --square-light: #efe8d8;
+  --square-dark: #8a7355;
+  --board-edge: #6d5940;
+  --piece-light: #fdfcf8;
+  --piece-dark: #1a1714;
+  --move-hint: rgb(20 18 15 / 0.42);
   --highlight-last: rgb(160 170 90 / 0.35);
   --highlight-pick: rgb(90 130 170 / 0.45);
+  --highlight-check: rgb(190 60 50 / 0.42);
   --error-bg: #fbe6e4;
   --error-fg: #8c2f26;
 
@@ -25,10 +30,15 @@
     --muted: #9a9892;
     --line: #35383c;
     --accent: #8fae7d;
-    --square-light: #b7ad96;
-    --square-dark: #6f6350;
+    --square-light: #c4b89d;
+    --square-dark: #6a5842;
+    --board-edge: #463a2c;
+    --piece-light: #f5f2ea;
+    --piece-dark: #16130f;
+    --move-hint: rgb(15 13 10 / 0.5);
     --highlight-last: rgb(190 200 110 / 0.3);
     --highlight-pick: rgb(120 165 210 / 0.45);
+    --highlight-check: rgb(210 75 60 / 0.45);
     --error-bg: #3a1f1d;
     --error-fg: #f0b4ad;
   }
