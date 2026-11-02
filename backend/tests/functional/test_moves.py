@@ -126,3 +126,76 @@ def test_get_game_moves_unknown_game_returns_404(client: TestClient) -> None:
     response = client.get("/games/ghost/moves")
 
     assert response.status_code == 404
+
+
+def test_get_game_legal_moves_lists_the_opening_moves(
+    client: TestClient, game: dict[str, str]
+) -> None:
+    response = client.get(f"/games/{game['id']}/legal-moves")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["turn"] == "white"
+    # Twenty in the starting position: sixteen pawn pushes and four knight moves.
+    assert len(body["moves"]) == 20
+    assert "e2e4" in body["moves"]
+    assert "g1f3" in body["moves"]
+    assert "e2e5" not in body["moves"]
+
+
+def test_get_game_legal_moves_follows_the_side_to_move(
+    client: TestClient, game: dict[str, str]
+) -> None:
+    play(client, game, "e2e4")
+
+    response = client.get(f"/games/{game['id']}/legal-moves")
+
+    body = response.json()
+    assert body["turn"] == "black"
+    assert body["fen"].startswith("rnbqkbnr/pppppppp/8/8/4P3")
+    assert all(move[1] in "78" for move in body["moves"])
+
+
+def test_get_game_legal_moves_only_escapes_a_check(
+    client: TestClient, game: dict[str, str]
+) -> None:
+    # 1. e4 d5 2. Bb5+ - the king is boxed in by its own pieces, so the only
+    # answers are the five ways to block the b5-e8 diagonal.
+    play(client, game, "e2e4")
+    play(client, game, "d7d5", color="black")
+    play(client, game, "f1b5")
+
+    response = client.get(f"/games/{game['id']}/legal-moves")
+
+    body = response.json()
+    assert body["turn"] == "black"
+    assert sorted(body["moves"]) == sorted(["c7c6", "b8c6", "b8d7", "c8d7", "d8d7"])
+
+
+def test_get_game_legal_moves_is_empty_once_the_game_is_over(
+    client: TestClient, game: dict[str, str]
+) -> None:
+    for uci, color in zip(FOOLS_MATE, ["white", "black", "white", "black"], strict=True):
+        play(client, game, uci, color=color)
+
+    response = client.get(f"/games/{game['id']}/legal-moves")
+
+    assert response.status_code == 200
+    assert response.json()["moves"] == []
+
+
+def test_get_game_legal_moves_is_empty_after_a_resignation(
+    client: TestClient, game: dict[str, str]
+) -> None:
+    client.post(f"/games/{game['id']}/resign", json={"player_id": game["white"]})
+
+    response = client.get(f"/games/{game['id']}/legal-moves")
+
+    assert response.status_code == 200
+    assert response.json()["moves"] == []
+
+
+def test_get_game_legal_moves_unknown_game_returns_404(client: TestClient) -> None:
+    response = client.get("/games/ghost/legal-moves")
+
+    assert response.status_code == 404

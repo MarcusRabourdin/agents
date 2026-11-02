@@ -91,6 +91,24 @@ class MoveResponse(BaseModel):
         )
 
 
+class LegalMovesResponse(BaseModel):
+    """Every move playable in the current position.
+
+    The position is echoed back so a caller that polls can tell whether the
+    list it holds still describes the board it is drawing.
+    """
+
+    fen: str = Field(
+        description="Position the moves were generated from",
+        examples=[STARTING_FEN],
+    )
+    turn: Color = Field(description="Side the moves belong to")
+    moves: list[str] = Field(
+        description="Legal moves in UCI notation, empty once the game is over",
+        examples=[["e2e4", "g1f3"]],
+    )
+
+
 class GameStateResponse(BaseModel):
     id: str
     white_player_id: str

@@ -11,7 +11,12 @@ from app.errors import (
     NotAPlayerOfGameError,
     NotPlayerTurnError,
 )
-from app.models.game import GameStateResponse, MoveRequest, MoveResponse
+from app.models.game import (
+    GameStateResponse,
+    LegalMovesResponse,
+    MoveRequest,
+    MoveResponse,
+)
 from app.services.game import GameService
 
 router = APIRouter(prefix="/games", tags=["moves"])
@@ -30,6 +35,23 @@ def get_game_moves(
 ) -> list[MoveResponse]:
     try:
         return service.list_moves(game_id)
+    except GameNotFoundError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+
+
+@router.get(
+    "/{game_id}/legal-moves",
+    response_model=LegalMovesResponse,
+    summary="List every legal move in the current position",
+    response_description="The legal moves, with the position they come from",
+    responses=NOT_FOUND,
+)
+def get_game_legal_moves(
+    game_id: str,
+    service: GameService = Depends(get_game_service),
+) -> LegalMovesResponse:
+    try:
+        return service.list_legal_moves(game_id)
     except GameNotFoundError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
 

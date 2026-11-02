@@ -302,6 +302,38 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /games/{game_id}/legal-moves:
+    get:
+      tags:
+      - moves
+      summary: List every legal move in the current position
+      operationId: get_game_legal_moves
+      parameters:
+      - name: game_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Game Id
+      responses:
+        '200':
+          description: The legal moves, with the position they come from
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegalMovesResponse'
+        '404':
+          description: Resource does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /lobby/queue:
     get:
       tags:
@@ -452,6 +484,38 @@ components:
           title: Detail
       type: object
       title: HTTPValidationError
+    LegalMovesResponse:
+      properties:
+        fen:
+          type: string
+          title: Fen
+          description: Position the moves were generated from
+          examples:
+          - rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
+        turn:
+          $ref: '#/components/schemas/Color'
+          description: Side the moves belong to
+        moves:
+          items:
+            type: string
+          type: array
+          title: Moves
+          description: Legal moves in UCI notation, empty once the game is over
+          examples:
+          - - e2e4
+            - g1f3
+      type: object
+      required:
+      - fen
+      - turn
+      - moves
+      title: LegalMovesResponse
+      description: 'Every move playable in the current position.
+
+
+        The position is echoed back so a caller that polls can tell whether the
+
+        list it holds still describes the board it is drawing.'
     MoveRequest:
       properties:
         player_id:
