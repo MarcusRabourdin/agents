@@ -1,0 +1,21 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Node
+node_modules/
+dist/
+*.local
+
+# Nix (flake.lock is committed on purpose)
+result
+result-*
+.direnv/
+
+# Editors / OS
+.DS_Store
+*.swp

@@ -1,0 +1,9 @@
+fastapi>=0.115
+uvicorn[standard]>=0.32
+pydantic>=2.9
+chess>=1.11
+PyYAML>=6.0
+
+# Tests
+pytest>=8.3
+httpx2>=2.16   # what starlette's TestClient wants; plain httpx is deprecated
