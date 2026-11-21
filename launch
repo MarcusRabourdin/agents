@@ -1,0 +1,170 @@
+#!/bin/sh
+# launch - run the chess API and the web client together, in one terminal.
+#
+#   ./launch      local only: API on 127.0.0.1:8000, client on localhost:5173
+#   ./launch n    network:    API on 0.0.0.0:5147,   client on 0.0.0.0:5173
+#
+# Ctrl-C stops both. The client proxies /api to whichever port the API ended up
+# on, so the browser stays on a single origin and CORS never comes up - which is
+# also why network mode exposes the client as well as the API: a friend on the
+# LAN needs the client's address and nothing else.
+
+set -eu
+
+ROOT=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+cd "$ROOT"
+
+LOCAL_API_PORT=8000
+NET_API_PORT=5147
+WEB_PORT=${CHESS_WEB_PORT:-5173}
+
+die() {
+    printf 'launch: %s\n' "$1" >&2
+    exit 1
+}
+
+usage() {
+    cat <<EOF
+usage: launch [n]
+
+  (no argument)  local only: API on 127.0.0.1:$LOCAL_API_PORT, client on localhost:$WEB_PORT
+  n              network: API on 0.0.0.0:$NET_API_PORT, client reachable from the LAN
+
+environment:
+  CHESS_API_PORT   override the API port
+  CHESS_WEB_PORT   override the client port (default $WEB_PORT)
+EOF
+}
+
+# --- arguments -------------------------------------------------------------
+
+[ "$#" -le 1 ] || { usage >&2; exit 2; }
+
+MODE=local
+case ${1-} in
+    '') ;;
+    n | net | network) MODE=network ;;
+    -h | --help)
+        usage
+        exit 0
+        ;;
+    *)
+        printf 'launch: unknown argument "%s"\n\n' "$1" >&2
+        usage >&2
+        exit 2
+        ;;
+esac
+
+if [ "$MODE" = network ]; then
+    API_HOST=0.0.0.0
+    API_PORT=${CHESS_API_PORT:-$NET_API_PORT}
+    WEB_EXPOSE=--host
+else
+    API_HOST=127.0.0.1
+    API_PORT=${CHESS_API_PORT:-$LOCAL_API_PORT}
+    WEB_EXPOSE=
+fi
+
+# --- toolchain -------------------------------------------------------------
+
+have() { command -v "$1" >/dev/null 2>&1; }
+has_nix() { have nix && [ -f flake.nix ]; }
+
+# The backend runs on the first interpreter that already has its dependencies:
+# this checkout's venv, then the pinned Nix shell, then whatever python3 is on
+# PATH. Nothing here installs Python packages behind your back.
+if [ -x .venv/bin/python ] && .venv/bin/python -c 'import fastapi, uvicorn' 2>/dev/null; then
+    RUNNER=venv
+elif has_nix; then
+    RUNNER=nix
+elif have python3 && python3 -c 'import fastapi, uvicorn' 2>/dev/null; then
+    RUNNER=system
+else
+    die "no usable Python environment. Install Nix, or:
+  python3 -m venv .venv && .venv/bin/python -m pip install -r backend/requirements.txt"
+fi
+
+# npm comes from the Nix dev shell when it is not on PATH.
+NPM_VIA_NIX=no
+if ! have npm; then
+    if has_nix; then
+        NPM_VIA_NIX=yes
+    else
+        die "npm not found. Install Node, or Nix for the pinned toolchain."
+    fi
+fi
+
+run_npm() {
+    if [ "$NPM_VIA_NIX" = yes ]; then
+        nix develop --command npm "$@"
+    else
+        npm "$@"
+    fi
+}
+
+# --- shutdown --------------------------------------------------------------
+
+API_PID=
+WEB_PID=
+
+# Both children are wrappers around the process that actually holds the port:
+# npm spawns vite, uvicorn --reload spawns its worker, and `nix develop
+# --command` wraps either one. Killing the pid we started would leave the real
+# server orphaned and the port taken, so kill the whole process group instead -
+# `set -m` below makes each child a group leader. The plain kill is the fallback
+# for a shell that gave us no job control, where the group does not exist.
+stop() {
+    kill -- "-$1" 2>/dev/null || kill "$1" 2>/dev/null || true
+}
+
+cleanup() {
+    trap - INT TERM EXIT
+    for pid in $API_PID $WEB_PID; do
+        stop "$pid"
+    done
+    wait 2>/dev/null || true
+}
+trap cleanup INT TERM EXIT
+
+# --- run -------------------------------------------------------------------
+
+if [ ! -d frontend/node_modules ]; then
+    printf 'launch: installing frontend dependencies (first run)\n'
+    run_npm --prefix frontend install
+fi
+
+printf 'launch: %s mode, backend via %s\n' "$MODE" "$RUNNER"
+printf '  API     http://%s:%s  (docs at /docs)\n' "$API_HOST" "$API_PORT"
+printf '  client  http://localhost:%s\n\n' "$WEB_PORT"
+
+# Job control, so each child below leads its own process group and cleanup can
+# take its whole tree down. The trade-off is that a terminal Ctrl-C now reaches
+# only this script, not the children - which is why cleanup does the killing
+# rather than relying on the signal fanning out to the group.
+set -m 2>/dev/null || true
+
+set -- app.main:app --reload --app-dir backend --host "$API_HOST" --port "$API_PORT"
+case $RUNNER in
+    venv) .venv/bin/python -m uvicorn "$@" & ;;
+    nix) nix develop --command uvicorn "$@" & ;;
+    system) python3 -m uvicorn "$@" & ;;
+esac
+API_PID=$!
+
+# Tells vite/vite.config.ts where to point its /api proxy.
+CHESS_API_TARGET="http://127.0.0.1:$API_PORT"
+export CHESS_API_TARGET
+
+# --strictPort so a busy port fails loudly instead of silently moving the
+# client somewhere the printed URL does not match.
+run_npm --prefix frontend run dev -- --port "$WEB_PORT" --strictPort $WEB_EXPOSE &
+WEB_PID=$!
+
+# Either one going down takes the other with it, so a crashed backend never
+# leaves a client running against nothing.
+while kill -0 "$API_PID" 2>/dev/null && kill -0 "$WEB_PID" 2>/dev/null; do
+    sleep 1
+done
+
+kill -0 "$API_PID" 2>/dev/null || printf '\nlaunch: the API exited, stopping the client\n' >&2
+kill -0 "$WEB_PID" 2>/dev/null || printf '\nlaunch: the client exited, stopping the API\n' >&2
