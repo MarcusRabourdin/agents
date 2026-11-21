@@ -10,8 +10,18 @@ API_DESCRIPTION = (
     "Storage is in-memory: every object is lost on restart."
 )
 
+# Where Swagger UI at /docs sends its "Try it out" requests. The default is a
+# plain `uvicorn` run, and doc/swagger.yaml is generated from it, so changing it
+# here means regenerating the committed spec.
+#
+# ./launch overrides it with "/", relative to whatever origin served the docs
+# page: that script can put the API on another port or bind it for the LAN, and
+# a hardcoded 127.0.0.1:8000 would then aim every request from /docs at a port
+# nothing is listening on.
+API_SERVER_URL = os.environ.get("CHESS_API_URL", "http://127.0.0.1:8000")
+
 SERVERS = [
-    {"url": "http://127.0.0.1:8000", "description": "Local development"},
+    {"url": API_SERVER_URL, "description": "Local development"},
 ]
 
 TAGS_METADATA = [

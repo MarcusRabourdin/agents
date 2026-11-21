@@ -112,6 +112,12 @@ shell, then `python3` - installs `frontend/node_modules` on first run, and
 never installs Python packages on your behalf. `CHESS_API_PORT` and
 `CHESS_WEB_PORT` override the ports; `./launch --help` lists the lot.
 
+It exits 130 on Ctrl-C, 143 on `SIGTERM` and 1 when either half dies on its
+own, so a supervisor can tell a crash from a deliberate stop. Because it can
+move the API off its default port, it also sets `CHESS_API_URL=/` so the
+`/docs` page aims "Try it out" at the origin that served it rather than at the
+fixed address baked into `doc/swagger.yaml`.
+
 The sections below are the same thing by hand, and what to reach for when
 running one half on its own.
 

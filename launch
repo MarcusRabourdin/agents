@@ -111,10 +111,18 @@ WEB_PID=
 # npm spawns vite, uvicorn --reload spawns its worker, and `nix develop
 # --command` wraps either one. Killing the pid we started would leave the real
 # server orphaned and the port taken, so kill the whole process group instead -
-# `set -m` below makes each child a group leader. The plain kill is the fallback
-# for a shell that gave us no job control, where the group does not exist.
+# `set -m` below makes each child a group leader.
+#
+# Only group-kill once we have confirmed the child really leads its own group.
+# Without job control it does not, and "-$pid" would then name either nothing
+# or, worse, some unrelated group that happens to carry that id.
 stop() {
-    kill -- "-$1" 2>/dev/null || kill "$1" 2>/dev/null || true
+    pgid=$(ps -o pgid= -p "$1" 2>/dev/null | tr -d ' ')
+    if [ -n "$pgid" ] && [ "$pgid" = "$1" ]; then
+        kill -- "-$1" 2>/dev/null || true
+    else
+        kill "$1" 2>/dev/null || true
+    fi
 }
 
 cleanup() {
@@ -124,7 +132,17 @@ cleanup() {
     done
     wait 2>/dev/null || true
 }
-trap cleanup INT TERM EXIT
+
+# A signal is a deliberate stop, so it reports the conventional 128+n rather
+# than the failure status the monitor loop below ends on.
+on_signal() {
+    cleanup
+    exit "$1"
+}
+
+trap 'on_signal 130' INT
+trap 'on_signal 143' TERM
+trap cleanup EXIT
 
 # --- run -------------------------------------------------------------------
 
@@ -142,6 +160,12 @@ printf '  client  http://localhost:%s\n\n' "$WEB_PORT"
 # only this script, not the children - which is why cleanup does the killing
 # rather than relying on the signal fanning out to the group.
 set -m 2>/dev/null || true
+
+# Makes /docs aim its "Try it out" requests at the origin that served the page,
+# instead of the fixed 127.0.0.1:8000 the spec is generated with - which is not
+# where the API is whenever this script moved the port or bound it for the LAN.
+CHESS_API_URL=/
+export CHESS_API_URL
 
 set -- app.main:app --reload --app-dir backend --host "$API_HOST" --port "$API_PORT"
 case $RUNNER in
@@ -166,5 +190,17 @@ while kill -0 "$API_PID" 2>/dev/null && kill -0 "$WEB_PID" 2>/dev/null; do
     sleep 1
 done
 
-kill -0 "$API_PID" 2>/dev/null || printf '\nlaunch: the API exited, stopping the client\n' >&2
-kill -0 "$WEB_PID" 2>/dev/null || printf '\nlaunch: the client exited, stopping the API\n' >&2
+# Reaching here means something died on its own: a failure, not a stop we asked
+# for. Report it, so a supervisor or a `./launch && ...` chain can tell the
+# difference between a crash at startup and a clean Ctrl-C.
+STATUS=0
+if ! kill -0 "$API_PID" 2>/dev/null; then
+    printf '\nlaunch: the API exited, stopping the client\n' >&2
+    STATUS=1
+fi
+if ! kill -0 "$WEB_PID" 2>/dev/null; then
+    printf '\nlaunch: the client exited, stopping the API\n' >&2
+    STATUS=1
+fi
+
+exit "$STATUS"
