@@ -85,6 +85,7 @@ frontend/                React + Typescript + Vite
   src/fen.ts             FEN -> 64 squares, UCI building
   src/Board.tsx          The board
   src/App.tsx            Name / lobby / game screens, polling
+launch                   POSIX sh: runs the API and the client together
 flake.nix                Pinned toolchain: devShell, nix run, nix flake check
 flake.lock               Pinned nixpkgs, committed
 ```
@@ -94,6 +95,31 @@ router in `endpoints/moves.py` because they are a sub-resource of a game, but
 they are served by `GameService`: a move has no life of its own.
 
 ## Setup commands
+
+`./launch` is the everyday path: it starts the API and the web client together
+and stops both on Ctrl-C.
+
+```sh
+./launch        API on 127.0.0.1:8000, client on http://localhost:5173
+./launch n      API on 0.0.0.0:5147, client on 0.0.0.0:5173 - reachable from the LAN
+```
+
+Network mode exposes the client as well as the API, because the client proxies
+`/api` and a friend on the LAN only needs its address. The script points that
+proxy at whichever port the API got, so CORS stays out of the picture either
+way. It picks the backend interpreter itself - `.venv` first, then the Nix dev
+shell, then `python3` - installs `frontend/node_modules` on first run, and
+never installs Python packages on your behalf. `CHESS_API_PORT` and
+`CHESS_WEB_PORT` override the ports; `./launch --help` lists the lot.
+
+It exits 130 on Ctrl-C, 143 on `SIGTERM` and 1 when either half dies on its
+own, so a supervisor can tell a crash from a deliberate stop. Because it can
+move the API off its default port, it also sets `CHESS_API_URL=/` so the
+`/docs` page aims "Try it out" at the origin that served it rather than at the
+fixed address baked into `doc/swagger.yaml`.
+
+The sections below are the same thing by hand, and what to reach for when
+running one half on its own.
 
 Nix is the primary path. `flake.nix` pins the interpreter, every Python
 library, Node and ruff, so the toolchain is identical everywhere.
